@@ -40,13 +40,21 @@ def ask_for_user_input(question: str):
 
 @tool 
 def verify_with_user(confirmation: str) -> str:
-    """This function verifies with the user that they want to execute a certain task before executing it.
-    It takes in a message that describes what tasks will be executed and requests confirmation from the user."""
-    user_input = input(f"{confirmation} (yes/no): ")
-    if user_input.lower() != "yes":
-        print("User did not confirm. Task execution aborted.")
+    """Verifies with the user if they want to execute a task.
+    If the user says no, it captures their additional instructions or ends the task."""
+    user_input = input(f"{confirmation} (yes/no or provide additional instructions): ").strip().lower()
+    
+    if user_input in ["no", "nope", "n"]:
+        print("User declined the task.")
         return "Task execution aborted."
-    return "User confirmed."
+    elif user_input.startswith("no "): # provides addition info after 'no'
+        print("Captured additional instructions from user.")
+        return user_input[3:].strip()  # return only the new instructions after "no "
+    elif user_input in ["yes", "y"]:
+        return "User confirmed."
+    else:
+        print("Invalid response. Assuming 'no'.")
+        return "Task execution aborted."
 
 @tool
 def call_smart_home_agent(query: str):
@@ -117,25 +125,42 @@ if __name__ == "__main__":
         verbose=True
     )
     
-    user_input = input("Enter your query: ")
-    expanded_input = expand_user_query.run(user_input)
+    while True:
+        user_input = input("Enter your query: ").strip()
+        expanded_input = expand_user_query.run(user_input)
 
-    if "Task execution aborted." in expanded_input:
-        print("Ending the session as the user declined further actions.")
-        sys.exit()
+        task = Task(
+            description=f'Execute the following user query: {expanded_input}',
+            agent=planningAgent,
+            expected_output='A message of confirmation that the task has been executed.',
+        )
 
-    task = Task(
-        description=f'Execute the following user query: {expanded_input}',
-        agent=planningAgent,
-        expected_output='A message of confirmation that the task has been executed.',
-    )
+        crew = Crew(
+            agents=[planningAgent],
+            tasks=[task],
+            verbose=True
+        )
 
-    crew = Crew(
-        agents=[planningAgent],
-        tasks=[task],
-        verbose=True
-    )
+        result = crew.kickoff()
 
-    result = crew.kickoff()
-    if result == "Task execution aborted.":
-        print("No further action will be taken.")
+        if "Task execution aborted." in result:
+            print("No further action will be taken for this query.")
+            continue
+        elif isinstance(result, str) and result.startswith("only"):
+            print(f"Updating task to new context: {result}")
+            updated_task = Task(
+                description=f'Execute the following user query: {result}',
+                agent=planningAgent,
+                expected_output='A message of confirmation that the task has been executed.',
+            )
+            updated_crew = Crew(
+                agents=[planningAgent],
+                tasks=[updated_task],
+                verbose=True
+            )
+            updated_result = updated_crew.kickoff()
+            print(updated_result)
+        else:
+            print("Task completed.")
+            break
+
