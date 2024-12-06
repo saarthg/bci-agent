@@ -2,6 +2,10 @@ from browser_control import browser_control
 import logging
 import sys
 
+"""
+/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome_debug_profile
+"""
+
 # Set up logging
 logging.basicConfig(
     level=logging.DEBUG,
