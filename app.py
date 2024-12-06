@@ -18,6 +18,25 @@ from smarthome import set_thermostat, turn_off_ac, turn_off_lights, turn_on_ac, 
 
 load_dotenv()
 
+# Add to your imports
+from browser_control import browser_control
+
+@tool
+def call_browser_agent(query: str):
+    """This function calls the browser agent, which can execute tasks like switching tabs and navigation."""
+    task = Task(
+        description=f'Execute the following user query: {query}',
+        agent=browserAgent,
+        expected_output='A message of confirmation that the task has been executed.',
+    )
+    crew = Crew(
+        agents=[browserAgent],
+        tasks=[task],
+        verbose=True
+    )
+    result = crew.kickoff()
+    return result
+
 @tool
 def expand_user_query(query: str) -> str:
     """This function takes a short user query and expands it into a detailed, task-oriented request for automation purposes."""
@@ -96,6 +115,16 @@ def call_email_agent(query: str):
 llm = ChatOpenAI(model="gpt-4o-mini", openai_api_key=os.getenv("OPENAI_API_KEY"))
 
 if __name__ == "__main__":
+    browserAgent = Agent(
+        role='Browser Control Agent',
+        goal='Execute browser-related commands like switching tabs and navigation',
+        backstory="""You are a browser control agent capable of managing browser windows,
+        tabs, and navigation.""",
+        tools=[browser_control, ask_for_user_input, expand_user_query, verify_with_user],
+        llm=llm,
+        verbose=True
+    )
+    
     smartHomeAgent = Agent(
         role='Smart Home Agent',
         goal='Execute the user query to control smart home devices. Make sure to ask for confirmation before calling tools.',
@@ -112,7 +141,7 @@ if __name__ == "__main__":
         backstory="""You are the outer planning agent, responsible for understanding the user query and sending relevant information
         to the appropriate agents.""",
         llm=llm,
-        tools=[call_smart_home_agent, call_email_agent, expand_user_query],
+        tools=[call_smart_home_agent, call_email_agent, call_browser_agent, expand_user_query],  # Add call_browser_agent
         verbose=True
     )
 
