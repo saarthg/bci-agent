@@ -4,6 +4,8 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, WebDriverException
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.action_chains import ActionChains
 from crewai_tools import tool
 import logging
 import sys
@@ -25,7 +27,6 @@ class BrowserControl:
     def start_chrome_debugger(self):
         """Start Chrome with debugging port if not already running"""
         try:
-            # Check if Chrome is running with debug port
             result = subprocess.run(['lsof', '-i', ':9222'], capture_output=True, text=True)
             if not result.stdout:
                 logger.info("Starting Chrome with remote debugging...")
@@ -35,7 +36,7 @@ class BrowserControl:
                     '--remote-debugging-port=9222',
                     '--user-data-dir=/tmp/chrome_debug_profile'
                 ])
-                time.sleep(3)  # Wait for Chrome to start
+                time.sleep(3)
         except Exception as e:
             logger.error(f"Error starting Chrome: {str(e)}")
             raise
@@ -47,13 +48,9 @@ class BrowserControl:
                 logger.debug("Setting up Chrome options...")
                 options = webdriver.ChromeOptions()
                 options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
-                
-                # Add these options to help with debugging
                 options.add_argument('--no-sandbox')
                 options.add_argument('--disable-dev-shm-usage')
-                options.add_argument('--remote-debugging-port=9222')
                 
-                # Start Chrome if not running
                 self.start_chrome_debugger()
                 
                 logger.debug("Attempting to connect to Chrome...")
@@ -101,7 +98,66 @@ class BrowserControl:
             logger.error(f"Error in switch_to_tab: {str(e)}")
             raise
 
-# Create a singleton instance
+    def compose_email(self, recipient, subject, message):
+        """Compose a new email in Gmail with recipient, subject, and message"""
+        try:
+            logger.info("Attempting to compose new email")
+            
+            wait = WebDriverWait(self.driver, 20)
+            compose_button = wait.until(
+                EC.element_to_be_clickable((By.CSS_SELECTOR, 'div[role="button"][gh="cm"]'))
+            )
+            compose_button.click()
+            logger.info("Clicked compose button")
+            
+            time.sleep(2)
+            
+            to_field = wait.until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, 'input[role="combobox"][type="text"]'))
+            )
+            to_field.send_keys(recipient)
+            logger.info("Entered recipient")
+            
+            subject_field = wait.until(
+                EC.presence_of_element_located((By.NAME, 'subjectbox'))
+            )
+            subject_field.send_keys(subject)
+            logger.info("Entered subject")
+            
+            try:
+                # Method 1: Using iframe
+                iframe = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, 'div[role="dialog"] iframe')))
+                self.driver.switch_to.frame(iframe)
+                body = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, 'div[role="textbox"]')))
+                body.send_keys(message)
+                logger.info("Entered message using iframe method")
+                self.driver.switch_to.default_content()
+            except Exception as e:
+                logger.info(f"Iframe method failed: {str(e)}, trying alternate method")
+                
+                # Method 2: Direct message body
+                self.driver.switch_to.default_content()
+                body = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, 'div[role="textbox"][aria-label="Message Body"]')))
+                body.send_keys(message)
+                logger.info("Entered message using direct method")
+            
+            # Pause for 5 seconds
+            logger.info("Pausing for 5 seconds before sending...")
+            time.sleep(5)
+            
+            send_button = wait.until(
+                EC.element_to_be_clickable((By.CSS_SELECTOR, 'div[role="dialog"] div[role="button"][aria-label*="Send"]'))
+            )
+            send_button.click()
+            logger.info("Clicked send button")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error in compose_email: {str(e)}")
+            self.driver.switch_to.default_content()  # Reset frame focus
+            raise
+
 browser_controller = BrowserControl()
 
 @tool
@@ -110,10 +166,23 @@ def browser_control(command: str) -> str:
     logger.info(f"Received command: {command}")
     
     try:
-        # Parse the command
-        if "click on" in command.lower() or "switch to" in command.lower():
+        if "compose" in command.lower() or "write" in command.lower():
+            if "email" in command.lower() or "gmail" in command.lower():
+                success = browser_controller.switch_to_tab("gmail")
+                if not success:
+                    return "Failed to access Gmail"
+                
+                time.sleep(2)  # Give Gmail time to load
+                recipient = "emailypark@gmail.com"
+                subject = "testing for bci agents group"
+                message = "hello this is emily :)))"
+                
+                if browser_controller.compose_email(recipient, subject, message):
+                    return "Successfully sent email"
+                return "Failed to compose email"
+                
+        elif "click on" in command.lower() or "switch to" in command.lower():
             if "gmail" in command.lower():
-                logger.info("Attempting to switch to Gmail tab")
                 success = browser_controller.switch_to_tab("gmail")
                 if success:
                     return "Successfully switched to Gmail tab"
