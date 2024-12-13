@@ -7,6 +7,7 @@ import os
 import sys
 import logging
 from dotenv import load_dotenv
+import json
 
 from computerAgent import book_ride, browse_and_purchase_items, enable_navigation_and_multiapp, file_operations, fill_online_form, gmail_create_draft, manage_emails, manage_messages, manage_social_media, navigate_links_or_menus, order_groceries, perform_online_banking, public_transit_schedule, schedule_meeting, search_files, speech_based_search
 from smartHomeAgent import adjust_curtains, answer_video_doorbell, control_entertainment_device, control_streaming_service, manage_locks, manage_security, search_and_play_content, set_thermostat, start_appliance, stop_appliance, turn_off_ac, turn_off_lights, turn_on_ac, turn_on_lights
@@ -24,22 +25,38 @@ logger = logging.getLogger(__name__)
 
 browser_controller = BrowserControl()
 
-@tool
-def send_friend_email(message: str):
-    """Sends an email to the hardcoded friend's address with a dynamic message"""
+def load_contacts():
+    """Load contacts from JSON file"""
     try:
-        logger.info(f"Attempting to send email with message: {message}")
+        contacts_path = os.path.join(os.path.dirname(__file__), 'contacts.json')
+        with open(contacts_path, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Error loading contacts: {str(e)}")
+        return {"friend": "emailypark@gmail.com"}
+
+@tool
+def send_friend_email(recipient_type: str, message: str):
+    """Sends an email to a contact with a dynamic message"""
+    try:
+        logger.info(f"Attempting to send email to {recipient_type} with message: {message}")
+        
+        # load contacts
+        contacts = load_contacts()
+
+        if recipient_type not in contacts:
+            return f"No email address found for '{recipient_type}'"
         
         success = browser_controller.switch_to_tab("gmail")
         if not success:
             return "Failed to access Gmail"
         
-        recipient = "emailypark@gmail.com"  # hardcoded email
-        subject = "Message from Friend"
+        recipient = contacts[recipient_type]
+        subject = f"Message from {recipient_type.capitalize()}"
         
         if browser_controller.compose_email(recipient, subject, message):
-            return "Successfully sent email"
-        return "Failed to send email"
+            return f"Successfully sent email to {recipient_type}"
+        return f"Failed to send email to {recipient_type}"
     except Exception as e:
         logger.error(f"Error sending email: {str(e)}")
         return f"Error: {str(e)}"
@@ -182,13 +199,18 @@ browserAgent = Agent(
 )
 
 def execute_query(user_input):
-    if user_input.lower().startswith("mail friend"):
-        logger.info("Detected friend email request")
-        message = user_input[11:].strip()  # length of "mail friend "
-        if message:
-            return send_friend_email.run(message)  # .run() to execute the tool
-        else:
-            return "No message provided for the email"
+    if user_input.lower().startswith("mail "):
+        logger.info("Detected email request")
+        remaining_text = user_input[5:].strip()
+        parts = remaining_text.split(" ", 1)
+        
+        if len(parts) < 2:
+            return "Please provide both recipient and message (e.g., 'mail friend hello')"
+            
+        recipient_type = parts[0].lower()
+        message = parts[1]
+        
+        return send_friend_email.run(recipient_type, message)
     
     task = Task(
         description=f'Execute the following user query: {user_input}',
