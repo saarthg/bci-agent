@@ -5,13 +5,44 @@ from langchain_core.prompts import PromptTemplate
 
 import os
 import sys
+import logging
 from dotenv import load_dotenv
 
 from computerAgent import book_ride, browse_and_purchase_items, enable_navigation_and_multiapp, file_operations, fill_online_form, gmail_create_draft, manage_emails, manage_messages, manage_social_media, navigate_links_or_menus, order_groceries, perform_online_banking, public_transit_schedule, schedule_meeting, search_files, speech_based_search
 from smartHomeAgent import adjust_curtains, answer_video_doorbell, control_entertainment_device, control_streaming_service, manage_locks, manage_security, search_and_play_content, set_thermostat, start_appliance, stop_appliance, turn_off_ac, turn_off_lights, turn_on_ac, turn_on_lights
 from browser_control import browser_control
+from browser_control import BrowserControl
 
 load_dotenv()
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    stream=sys.stdout
+)
+logger = logging.getLogger(__name__)
+
+browser_controller = BrowserControl()
+
+@tool
+def send_friend_email(message: str):
+    """Sends an email to the hardcoded friend's address with a dynamic message"""
+    try:
+        logger.info(f"Attempting to send email with message: {message}")
+        
+        success = browser_controller.switch_to_tab("gmail")
+        if not success:
+            return "Failed to access Gmail"
+        
+        recipient = "emailypark@gmail.com"  # hardcoded email
+        subject = "Message from Friend"
+        
+        if browser_controller.compose_email(recipient, subject, message):
+            return "Successfully sent email"
+        return "Failed to send email"
+    except Exception as e:
+        logger.error(f"Error sending email: {str(e)}")
+        return f"Error: {str(e)}"
 
 @tool
 def call_browser_agent(query: str):
@@ -151,6 +182,14 @@ browserAgent = Agent(
 )
 
 def execute_query(user_input):
+    if user_input.lower().startswith("mail friend"):
+        logger.info("Detected friend email request")
+        message = user_input[11:].strip()  # length of "mail friend "
+        if message:
+            return send_friend_email.run(message)  # .run() to execute the tool
+        else:
+            return "No message provided for the email"
+    
     task = Task(
         description=f'Execute the following user query: {user_input}',
         agent=planningAgent,
