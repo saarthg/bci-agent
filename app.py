@@ -52,7 +52,7 @@ def send_friend_email(recipient_type: str, message: str):
             return "Failed to access Gmail"
         
         recipient = contacts[recipient_type]
-        subject = f"Message from {recipient_type.capitalize()}"
+        subject = f"Message to {recipient_type.capitalize()}"
         
         if browser_controller.compose_email(recipient, subject, message):
             return f"Successfully sent email to {recipient_type}"
@@ -93,7 +93,6 @@ def ask_for_user_input(question: str):
     user_input = input(question)
     return user_input
 
-
 @tool 
 def verify_with_user(confirmation: str) -> str:
     """Verifies with the user if they want to execute a task.
@@ -126,6 +125,74 @@ def call_smart_home_agent(query: str):
         tasks=[task],
         verbose=True
     )
+    result = crew.kickoff()
+    return result
+
+@tool
+def enhance_message(contact_type: str, original_message: str) -> str:
+    """Enhances the user's message while keeping the original meaning"""
+    prompt = f"""Make this message a more conversational and complete sentence while not going too far from its exact meaning: '{original_message}'
+    The message is for {contact_type}. Keep it brief and natural.
+    You may add greetings like 'hi' or 'hello'.
+    Just make it flow more naturally."""
+    
+    try:
+        response = llm.invoke(prompt)
+        enhanced = response.content.strip()
+        logger.info(f"Original message: {original_message}")
+        logger.info(f"Enhanced message: {enhanced}")
+        return enhanced
+    except Exception as e:
+        logger.error(f"Error enhancing message: {str(e)}")
+        return original_message
+
+
+def execute_query(user_input):
+    if user_input.lower().startswith("help mail "):
+        logger.info("Detected help mail request")
+        remaining_text = user_input[10:].strip()
+        parts = remaining_text.split(" ", 1)
+        
+        if len(parts) < 2:
+            return "Please provide both recipient and message (e.g., 'help mail friend need food')"
+            
+        contact_type = parts[0].lower()
+        original_message = parts[1]
+        
+        contacts = load_contacts()
+        if contact_type not in contacts:
+            return f"No email address found for '{contact_type}'"
+        
+        enhanced_message = enhance_message.run(contact_type, original_message)
+        logger.info(f"Enhanced message: {enhanced_message}")
+        
+        return send_friend_email.run(contact_type, enhanced_message)
+        
+    elif user_input.lower().startswith("mail "):
+        logger.info("Detected email request")
+        remaining_text = user_input[5:].strip()
+        parts = remaining_text.split(" ", 1)
+        
+        if len(parts) < 2:
+            return "Please provide both recipient and message (e.g., 'mail friend hello')"
+            
+        recipient_type = parts[0].lower()
+        message = parts[1]
+        
+        return send_friend_email.run(recipient_type, message)
+    
+    task = Task(
+        description=f'Execute the following user query: {user_input}',
+        agent=planningAgent,
+        expected_output='A message of confirmation that the task has been executed.',
+    )
+
+    crew = Crew(
+        agents=[planningAgent],
+        tasks=[task],
+        verbose=True
+    )
+
     result = crew.kickoff()
     return result
 
@@ -197,35 +264,6 @@ browserAgent = Agent(
         llm=llm,
         verbose=True
 )
-
-def execute_query(user_input):
-    if user_input.lower().startswith("mail "):
-        logger.info("Detected email request")
-        remaining_text = user_input[5:].strip()
-        parts = remaining_text.split(" ", 1)
-        
-        if len(parts) < 2:
-            return "Please provide both recipient and message (e.g., 'mail friend hello')"
-            
-        recipient_type = parts[0].lower()
-        message = parts[1]
-        
-        return send_friend_email.run(recipient_type, message)
-    
-    task = Task(
-        description=f'Execute the following user query: {user_input}',
-        agent=planningAgent,
-        expected_output='A message of confirmation that the task has been executed.',
-    )
-
-    crew = Crew(
-        agents=[planningAgent],
-        tasks=[task],
-        verbose=True
-    )
-
-    result = crew.kickoff()
-    return result
 
 if __name__ == "__main__":
     user_input = input("Enter your query: ").strip()
