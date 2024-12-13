@@ -100,7 +100,7 @@ def call_computer_agent(query: str):
 
 llm = ChatOpenAI(model="gpt-4o-mini", openai_api_key=os.getenv("OPENAI_API_KEY"))
 
-verification = "Make sure to ask for confirmation before calling tools."
+verification = "Make sure to ask for confirmation before calling tools." #Have removed this from the agent prompts for now due to testing
 
 smartHomeAgent = Agent(
     role='Smart Home Agent',
