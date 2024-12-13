@@ -1,9 +1,3 @@
-from ask_sdk_core.skill_builder import SkillBuilder
-from ask_sdk_core.handler_input import HandlerInput
-from ask_sdk_core.dispatch_components import AbstractRequestHandler
-from ask_sdk_core.utils import is_request_type, is_intent_name
-from ask_sdk_model import Response
-
 from crewai_tools import tool
 from crewai import Agent, Task, Crew
 from langchain_openai import ChatOpenAI
@@ -15,8 +9,25 @@ from dotenv import load_dotenv
 
 from computerAgent import book_ride, browse_and_purchase_items, enable_navigation_and_multiapp, file_operations, fill_online_form, gmail_create_draft, manage_emails, manage_messages, manage_social_media, navigate_links_or_menus, order_groceries, perform_online_banking, public_transit_schedule, schedule_meeting, search_files, speech_based_search
 from smartHomeAgent import adjust_curtains, answer_video_doorbell, control_entertainment_device, control_streaming_service, manage_locks, manage_security, search_and_play_content, set_thermostat, start_appliance, stop_appliance, turn_off_ac, turn_off_lights, turn_on_ac, turn_on_lights
+from browser_control import browser_control
 
 load_dotenv()
+
+@tool
+def call_browser_agent(query: str):
+    """This function calls the browser agent, which can execute tasks like switching tabs and navigation."""
+    task = Task(
+        description=f'Execute the following user query: {query}',
+        agent=browserAgent,
+        expected_output='A message of confirmation that the task has been executed.',
+    )
+    crew = Crew(
+        agents=[browserAgent],
+        tasks=[task],
+        verbose=True
+    )
+    result = crew.kickoff()
+    return result
 
 @tool
 def expand_user_query(query: str) -> str:
@@ -110,7 +121,7 @@ planningAgent = Agent(
     backstory="""You are the outer planning agent, responsible for understanding the user query and sending relevant information
     to the appropriate agents.""",
     llm=llm,
-    tools=[call_smart_home_agent, call_computer_agent],
+    tools=[call_smart_home_agent, call_computer_agent, call_browser_agent],
     verbose=True
 )
 
@@ -127,6 +138,16 @@ computerAgent = Agent(
         ask_for_user_input, verify_with_user
     ],
     verbose=True
+)
+
+browserAgent = Agent(
+        role='Browser Control Agent',
+        goal='Execute browser-related commands like switching tabs and navigation',
+        backstory="""You are a browser control agent capable of managing browser windows,
+        tabs, and navigation.""",
+        tools=[browser_control, ask_for_user_input, expand_user_query, verify_with_user],
+        llm=llm,
+        verbose=True
 )
 
 def execute_query(user_input):
@@ -149,4 +170,44 @@ if __name__ == "__main__":
     user_input = input("Enter your query: ").strip()
     #expanded_input = expand_user_query.run(user_input)
     execute_query(user_input)
+    
+    
+    # while True:
+    #     user_input = input("Enter your query: ").strip()
+    #     expanded_input = expand_user_query.run(user_input)
+
+    #     task = Task(
+    #         description=f'Execute the following user query: {expanded_input}',
+    #         agent=planningAgent,
+    #         expected_output='A message of confirmation that the task has been executed.',
+    #     )
+
+    #     crew = Crew(
+    #         agents=[planningAgent],
+    #         tasks=[task],
+    #         verbose=True
+    #     )
+
+    #     result = crew.kickoff()
+
+    #     if "Task execution aborted." in result:
+    #         print("No further action will be taken for this query.")
+    #         continue
+    #     elif isinstance(result, str) and result.startswith("only"):
+    #         print(f"Updating task to new context: {result}")
+    #         updated_task = Task(
+    #             description=f'Execute the following user query: {result}',
+    #             agent=planningAgent,
+    #             expected_output='A message of confirmation that the task has been executed.',
+    #         )
+    #         updated_crew = Crew(
+    #             agents=[planningAgent],
+    #             tasks=[updated_task],
+    #             verbose=True
+    #         )
+    #         updated_result = updated_crew.kickoff()
+    #         print(updated_result)
+    #     else:
+    #         print("Task completed.")
+    #         break
 

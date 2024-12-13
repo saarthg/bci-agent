@@ -1,0 +1,24 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      selenium:
+        specifier: ^2.20.0
+        version: 2.20.0
+
+packages:
+
+  selenium@2.20.0:
+    resolution: {integrity: sha512-Rs3db66ZOrs55MKWNAncCQiNLwYbQswDMVbyutT/8utJTkO8FzhdQT/0UG2xFMxdqxcxxVUnpHlyTGHi43mtSg==}
+    engines: {node: '> 0.4.x'}
+    hasBin: true
+
+snapshots:
+
+  selenium@2.20.0: {}
