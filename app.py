@@ -14,6 +14,7 @@ import sys
 from dotenv import load_dotenv
 
 from gmail import gmail_create_draft
+from mc_response import choose_response
 from smarthome import set_thermostat, turn_off_ac, turn_off_lights, turn_on_ac, turn_on_lights
 
 load_dotenv()
@@ -112,7 +113,7 @@ if __name__ == "__main__":
         backstory="""You are the outer planning agent, responsible for understanding the user query and sending relevant information
         to the appropriate agents.""",
         llm=llm,
-        tools=[call_smart_home_agent, call_email_agent, expand_user_query],
+        tools=[call_smart_home_agent, call_email_agent, expand_user_query, choose_response],
         verbose=True
     )
 
@@ -124,6 +125,15 @@ if __name__ == "__main__":
         tools=[gmail_create_draft, ask_for_user_input, expand_user_query, verify_with_user],
         verbose=True
     )
+
+    # response_agent = Agent(
+    #     role='Response Agent',
+    #     goal='Helps the user respond to incoming questions',
+    #     backstory='You are a response agent helping the user respond to incoming questions.',
+    #     llm=llm,
+    #     tools=[choose_response],
+    #     verbose=True
+    # )
     
     while True:
         user_input = input("Enter your query: ").strip()
